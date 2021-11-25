@@ -1,12 +1,14 @@
+open import Agda.Builtin.List using (List) renaming ([] to ■; _∷_ to _∻_)
+open import Agda.Builtin.Equality using (_≡_; refl)
+open import Agda.Builtin.IO using (IO)
+open import Agda.Builtin.Unit using (⊤)
 open import Data.Vec.Functional using ([]; _∷_)
 open import Data.Nat using (ℕ; zero; suc; _≟_)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
+open import Data.Product using (_,_)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Agda.Builtin.Equality using (_≡_; refl)
 open import Relation.Binary using (Decidable)
 open import Relation.Nullary using (yes; no)
-open import Agda.Builtin.IO using (IO)
-open import Agda.Builtin.Unit using (⊤)
 
 postulate
     printℕ : ℕ -> IO ⊤
@@ -153,6 +155,18 @@ import Reduction
 open Pattern Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ public
 open Syntax Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ public
 open Reduction Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ public
+
+term-true : ∀ {Γ} -> Γ ⊢ is ○ ⁺
+term-true = cons⁺ inr \ { fzero -> cons⁺ unit \ () }
+
+term-false : ∀ {Γ} -> Γ ⊢ is ○ ⁺
+term-false = cons⁺ inl \ { fzero -> cons⁺ unit \ () }
+
+isZero : ε ʻ ○ ⁺ ⊢ is ○ ⁺
+isZero = case var 𝕫 of
+    ((nat 0 ⁺⦅ (\ ()) ⦆ , term-true)
+    ∻ ($ _ , term-false)
+    ∻ ■)
 
 translate : ε ⊢ # -> IO ⊤
 translate ℧ = halt

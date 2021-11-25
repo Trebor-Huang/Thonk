@@ -51,6 +51,7 @@ data _⊢_ : Context -> Judgement -> Set where
         -> List (Σ[ pat ∈ Pattern h' ] (Γ ʻₚ pat ⊢ h)) -> Γ ⊢ h
     ℧ : ∀ {Γ} -> Γ ⊢ #
     print : ∀ {Γ} -> Γ ⊢ is ○ ⁺ -> Γ ⊢ # -> Γ ⊢ #
+    -- TODO generic builtin functions
 
 infix 9 ¬⁺_ ¬⁻_
 infixl 9 _⟦_⟧
