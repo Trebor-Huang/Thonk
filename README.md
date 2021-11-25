@@ -24,7 +24,7 @@ clause(+n) -> str
         (_, _) => str(n) ;
     }
 
-\comment {
+\{
     You can see that all the keywords
     begins with a backslash.
 

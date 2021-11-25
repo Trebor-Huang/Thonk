@@ -1,5 +1,5 @@
 open import Agda.Builtin.Nat
-open import Agda.Builtin.List using (List)
+open import Agda.Builtin.List using (List; []; _∷_)
 open import Agda.Builtin.Equality using (_≡_)
 open import Data.Maybe
 open import Data.Product
@@ -28,7 +28,7 @@ private
 open import Pattern C⁺ C⁻ cs _≟⁺_ _≟⁻_
 open Constructors
 
-infix 8  _⊢_ _⊢ₚ_ _⊢̅_
+infix 8 _⊢_ _⊢ₚ_ _⊢̅_ _⊢̂_ʻ_
 
 data _⊢_ : Context -> Judgement -> Set where
     var : ∀ {Γ h} -> Γ ∋ h -> Γ ⊢ is h
@@ -43,7 +43,7 @@ data _⊢_ : Context -> Judgement -> Set where
             ∀ i -> Γ ⊢ is (args i))
         -> Γ ⊢ is ● ⁻
     ⟨_∥⁺_⟩ : ∀ {Γ} -> Γ ⊢ is ● ⁺ -> Γ ⊢ is ○ ⁺ -> Γ ⊢ #
-    ⟨_⁻∥_⟩ : ∀ {Γ} -> Γ ⊢ is ○ ⁻ -> Γ ⊢ is ● ⁻ -> Γ ⊢ #
+    ⟨_⁻∥_⟩ : ∀ {Γ} -> Γ ⊢ is ● ⁻ -> Γ ⊢ is ○ ⁻ -> Γ ⊢ #
     ¬⁺_ : ∀ {Γ} -> Γ ʻ ○ ⁺ ⊢ # -> Γ ⊢ is ● ⁺
     ¬⁻_ : ∀ {Γ} -> Γ ʻ ● ⁻ ⊢ # -> Γ ⊢ is ○ ⁻
     _⟦_⟧ : ∀ {Γ Γ' h} -> Γ' ⊢ h -> (∀ {h'} -> Γ' ∋ h' -> Γ ⊢ is h') -> Γ ⊢ h
@@ -61,6 +61,9 @@ _⊢ₚ_ : ∀ {h} -> Context -> Pattern h -> Set
 
 _⊢̅_ : Context -> Context -> Set
 Γ ⊢̅ Γ' = ∀ {h'} -> Γ' ∋ h' -> Γ ⊢ is h'
+
+_⊢̂_ʻ_ : ∀ Γ h' j -> Set
+Γ ⊢̂ h' ʻ j = List (Σ[ pat ∈ Pattern h' ] (Γ ʻₚ pat ⊢ j))
 
 match : ∀ {Γ h} -> (p : Pattern h) -> Γ ⊢ is h -> Maybe (Γ ⊢ₚ p)
 match ($ _) t = just \ { (∂ _) -> t }
@@ -87,3 +90,16 @@ match {Γ} (c ⁻⦅ args ⦆) (cons⁻ c' args') with c ≟⁻ c'
         ... | just m = just \ { (i ≪⁻ α) -> m i α }
 ... | no _ = nothing
 match _ _ = nothing
+
+first-match : ∀ {Γ h' j} -> Γ ⊢̂ h' ʻ j -> Γ ⊢ is h' -> Maybe (Σ[ p ∈ Pattern h' ] Γ ⊢ₚ p × Γ ʻₚ p ⊢ j)
+first-match [] term = nothing
+first-match ((p , body) ∷ clauses) term with match p term
+... | just bindings = just (p , (bindings , body))
+... | nothing = nothing
+
+record Match {Γ h' j} (clauses : Γ ⊢̂ h' ʻ j) (term : Γ ⊢ is h')
+    (p : Pattern h') (bindings : Γ ⊢ₚ p) (body : Γ ʻₚ p ⊢ j) : Set where
+    field
+        evidence : first-match clauses term ≡ just (p , (bindings , body))
+
+pattern Match! {e} = record {evidence = e}
