@@ -21,25 +21,11 @@ open Constructors
 -- Small step semantics.
 infix 6 _↘_ _~>₁_ _~>_
 
--- First some convenient ways to create substitutions.
-push-σ : ∀ {Γ h} -> Γ ⊢ is h -> Γ ⊢̅ Γ ʻ h
-push-σ term 𝕫 = term
-push-σ term (𝕤 i) = var i
-
-push-σₚ : ∀ {Γ h} {p : Pattern h} -> Γ ⊢ₚ p -> Γ ⊢̅ Γ ʻₚ p
-push-σₚ terms (𝕫ₚ α) = terms α
-push-σₚ terms (𝕤ₚ i) = var i
-
-weaken-σ : ∀ {Γ Γ' h} -> Γ ⊢̅ Γ' -> Γ ʻ h ⊢̅ Γ'
-weaken-σ σ p = {!   !}
-
 _c⟦_⟧ : ∀ {Γ Γ' h j} -> Γ ⊢̂ h ʻ j -> Γ' ⊢̅ Γ -> Γ' ⊢̂ h ʻ j
 [] c⟦ σ ⟧ = []
-((pat , body) ∷ clause) c⟦ σ ⟧ = (pat , {!   !}) ∷ (clause c⟦ σ ⟧)
+((pat , body) ∷ clause) c⟦ σ ⟧ = (pat , body ⟦ extend-σₚ σ ⟧) ∷ (clause c⟦ σ ⟧)
 
 data _↘_ : ∀ {Γ j} -> Γ ⊢ j -> Γ ⊢ j -> Set where  -- a single reduction
-    loop : ∀ {Γ} -> Ω ↘ Ω {Γ = Γ}
-    -- no rule for abort (℧)
     σ-var : ∀ {Γ Γ' h} {v : Γ ∋ h} {σ : Γ' ⊢̅ Γ}
         -> var v ⟦ σ ⟧ ↘ σ v
     -- Congruence rules for substitution
@@ -52,11 +38,13 @@ data _↘_ : ∀ {Γ j} -> Γ ⊢ j -> Γ ⊢ j -> Set where  -- a single reduct
     σ-cmd⁻ : ∀ {Γ Γ' c t} {σ : Γ' ⊢̅ Γ}
         -> ⟨ c ⁻∥ t ⟩ ⟦ σ ⟧ ↘ ⟨ c ⟦ σ ⟧ ⁻∥ t ⟦ σ ⟧ ⟩
     σ-¬⁺ : ∀ {Γ Γ' c} {σ : Γ' ⊢̅ Γ}
-        -> (¬⁺ c) ⟦ σ ⟧ ↘ ¬⁺ (c ⟦ {!   !} ⟧)
+        -> (¬⁺ c) ⟦ σ ⟧ ↘ ¬⁺ (c ⟦ extend-σ σ ⟧)
     σ-¬⁻ : ∀ {Γ Γ' c} {σ : Γ' ⊢̅ Γ}
-        -> (¬⁻ c) ⟦ σ ⟧ ↘ ¬⁻ (c ⟦ {!   !} ⟧)
+        -> (¬⁻ c) ⟦ σ ⟧ ↘ ¬⁻ (c ⟦ extend-σ σ ⟧)
     σ-case : ∀ {Γ Γ' h j} {term : Γ ⊢ is h} {clauses : Γ ⊢̂ h ʻ j} {σ : Γ' ⊢̅ Γ}
         -> (case term of clauses) ⟦ σ ⟧ ↘ case (term ⟦ σ ⟧) of (clauses c⟦ σ ⟧)
+    σ-℧ : ∀ {Γ Γ'} {σ : Γ' ⊢̅ Γ}
+        -> ℧ ⟦ σ ⟧ ↘ ℧
     -- Casejumps
     casejump : ∀ {Γ h' j} {clauses : Γ ⊢̂ h' ʻ j} {term : Γ ⊢ is h'}
         {p : Pattern h'} {bindings : Γ ⊢ₚ p} {body : Γ ʻₚ p ⊢ j}
@@ -67,6 +55,7 @@ data _↘_ : ∀ {Γ j} -> Γ ⊢ j -> Γ ⊢ j -> Set where  -- a single reduct
         -> ⟨ ¬⁺ cont ∥⁺ term ⟩ ↘ cont ⟦ push-σ term ⟧
     E⁻ : ∀ {Γ term} {cont : Γ ⊢ is ● ⁻}
         -> ⟨ cont ⁻∥ ¬⁻ term ⟩ ↘ term ⟦ push-σ cont ⟧
+    -- TODO reduction for print
 
 data _~>₁_ : ∀ {Γ j} -> Γ ⊢ j -> Γ ⊢ j -> Set where  -- the congruent closure
 data _~>_ : ∀ {Γ j} -> Γ ⊢ j -> Γ ⊢ j -> Set where  -- the transitive closure
@@ -76,3 +65,26 @@ data _~>_ : ∀ {Γ j} -> Γ ⊢ j -> Γ ⊢ j -> Set where  -- the transitive c
 -- Defines normal forms.
 
 -- Defines a non-terminating function that executes a program.
+
+{-# NON_TERMINATING #-}
+normalize : ∀ {Γ j} -> Γ ⊢ j -> Γ ⊢ j
+normalize (var x) = var x
+normalize (cons⁺ c args) = cons⁺ c \ i -> normalize (args i)
+normalize (cons⁻ c args) = cons⁻ c \ i -> normalize (args i)
+normalize ⟨ c ∥⁺ t ⟩ with normalize t | normalize c
+... | nft | ¬⁺ hole = hole ⟦ (\ { 𝕫 -> nft ; (𝕤 i) -> var i }) ⟧
+... | nft | nfc = ⟨ nfc ∥⁺ nft ⟩
+normalize ⟨ c ⁻∥ t ⟩ with normalize c | normalize t
+... | nfc | ¬⁻ hole = hole ⟦ (\ { 𝕫 -> nfc ; (𝕤 i) -> var i }) ⟧
+... | nfc | nft = ⟨ nfc ⁻∥ nft ⟩
+normalize (¬⁺ t) = ¬⁺ t  -- Holes are lazy.
+normalize (¬⁻ t) = ¬⁻ t
+normalize (t ⟦ σ ⟧) = substitute σ t
+normalize (case t of clauses) with normalize t
+... | nf with first-match clauses nf
+... | just (p , (bindings , body)) = body ⟦ push-σₚ bindings ⟧
+... | nothing = case t of clauses  -- Stuck
+normalize ℧ = ℧
+normalize (print n c) = print (normalize n) (normalize c)
+
+-- Proves some properties about strong bisimulation
