@@ -8,9 +8,12 @@ open import Relation.Binary using (Decidable)
 open import Relation.Nullary using (yes; no)
 
 open import Constructor
+import Pattern
 
 module Syntax (C⁺ C⁻ : Set) (cs : Constructors C⁺ C⁻)
-    (_≟⁺_ : Decidable {A = C⁺} _≡_) (_≟⁻_ : Decidable {A = C⁻} _≡_) where
+    (_≟⁺_ : Decidable {A = C⁺} _≡_) (_≟⁻_ : Decidable {A = C⁻} _≡_)
+    (B : Set) (builtin : B -> Pattern.Context C⁺ C⁻ cs _≟⁺_ _≟⁻_)
+    (N : Set) (native : N -> Pattern.Context C⁺ C⁻ cs _≟⁺_ _≟⁻_) where
 
 private
     join-Fin : ∀ {n} {A : Fin n -> Set}
@@ -25,7 +28,7 @@ private
         (fsuc i) -> fs i }
     ... | nothing = nothing
 
-open import Pattern C⁺ C⁻ cs _≟⁺_ _≟⁻_
+open Pattern C⁺ C⁻ cs _≟⁺_ _≟⁻_
 open Constructors
 
 infix 8 _⊢_ _⊢ₚ_ _⊢̅_ _⊢̂_ʻ_
@@ -49,9 +52,8 @@ data _⊢_ : Context -> Judgement -> Set where
     _⟦_⟧ : ∀ {Γ Γ' h} -> Γ' ⊢ h -> (∀ {h'} -> Γ' ∋ h' -> Γ ⊢ is h') -> Γ ⊢ h
     case_of_ : ∀ {Γ h h'} -> Γ ⊢ is h'
         -> List (Σ[ pat ∈ Pattern h' ] (Γ ʻₚ pat ⊢ h)) -> Γ ⊢ h
-    ℧ : ∀ {Γ} -> Γ ⊢ #
-    print : ∀ {Γ} -> Γ ⊢ is ○ ⁺ -> Γ ⊢ # -> Γ ⊢ #
-    -- TODO generic builtin functions
+    b# : ∀ {Γ} b -> (∀ {h'} -> builtin b ∋ h' -> Γ ⊢ is h') -> Γ ⊢ #
+    n! : ∀ {Γ} n -> (∀ {h'} -> native n ∋ h' -> Γ ⊢ is h') -> Γ ⊢ is ○ ⁺
 
 infix 9 ¬⁺_ ¬⁻_
 infixl 9 _⟦_⟧
@@ -97,8 +99,8 @@ rename ρ (case t of clauses) = case rename ρ t of map-rename-ρ clauses
             (pat , rename (extend-ρₚ ρ) clause) ∷ map-rename-ρ l
 rename ρ ⟨ c ∥⁺ t ⟩ = ⟨ rename ρ c ∥⁺ rename ρ t ⟩
 rename ρ ⟨ c ⁻∥ t ⟩ = ⟨ rename ρ c ⁻∥ rename ρ t ⟩
-rename ρ ℧ = ℧
-rename ρ (print n c) = print (rename ρ n) (rename ρ c)
+rename ρ (b# b args) = b# b \ i -> rename ρ (args i)
+rename ρ (n! n args) = n! n \ i -> rename ρ (args i)
 
 push-σ : ∀ {Γ h} -> Γ ⊢ is h -> Γ ⊢̅ Γ ʻ h
 push-σ term 𝕫 = term
@@ -131,8 +133,8 @@ substitute σ (case t of clauses) = case substitute σ t of map-substitute-σ cl
             (pat , substitute (extend-σₚ σ) clause) ∷ map-substitute-σ l
 substitute σ ⟨ c ∥⁺ t ⟩ = ⟨ substitute σ c ∥⁺ substitute σ t ⟩
 substitute σ ⟨ c ⁻∥ t ⟩ = ⟨ substitute σ c ⁻∥ substitute σ t ⟩
-substitute σ ℧ = ℧
-substitute σ (print n c) = print (substitute σ n) (substitute σ c)
+substitute σ (b# b args) = b# b \ i -> substitute σ (args i)
+substitute σ (n! n args) = n! n \ i -> substitute σ (args i)
 
 match : ∀ {Γ h} -> (p : Pattern h) -> Γ ⊢ is h -> Maybe (Γ ⊢ₚ p)
 match ($ _) t = just \ { (∂ _) -> t }

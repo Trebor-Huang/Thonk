@@ -2,10 +2,16 @@ module Tests where
 
 open import thonk
 
-print-1 : ε ⊢ #
-print-1 = print (cons⁺ (nat 1) \ ()) ℧
+2+3 : ε ⊢ is ○ ⁺
+2+3 = n! add \
+    { 𝕫 -> cons⁺ (nat 2) \()
+    ; (𝕤 𝕫) -> cons⁺ (nat 3) \()
+    }
 
-print-1-10 
+print-2+3 : ε ⊢ #
+print-2+3 = b# print \
+    { 𝕫 -> 2+3
+    ; (𝕤 𝕫) -> ¬⁻ b# ℧ \ () }
 
 main : _
-main = interpret print-1
+main = interpret print-2+3

@@ -3,7 +3,7 @@ open import Agda.Builtin.Equality using (_≡_; refl)
 open import Agda.Builtin.IO using (IO)
 open import Agda.Builtin.Unit using (⊤)
 open import Data.Vec.Functional using ([]; _∷_)
-open import Data.Nat using (ℕ; zero; suc; _≟_)
+open import Data.Nat using (ℕ; zero; suc; _≟_; _+_)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.Product using (_,_)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -12,10 +12,12 @@ open import Relation.Nullary using (yes; no)
 
 postulate
     printℕ : ℕ -> IO ⊤
+    readℕ : IO ℕ
     _>>_ : IO ⊤ -> IO ⊤ -> IO ⊤
     halt : IO ⊤
     error : ∀ {a : Set} -> a
-{-# COMPILE GHC printℕ = print #-}
+{-# COMPILE GHC printℕ = putStrLn . show #-}
+{-# COMPILE GHC readℕ = readLn #-}
 {-# COMPILE GHC _>>_ = (>>) #-}
 {-# COMPILE GHC halt = return () #-}
 {-# COMPILE GHC error = error "Runtime Error!" #-}
@@ -153,8 +155,28 @@ import Pattern
 import Syntax
 import Reduction
 open Pattern Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ public
-open Syntax Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ public
-open Reduction Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ public
+
+data B : Set where
+    print : B
+    ℧ : B
+
+builtin : B -> Context
+builtin print = ε ʻ ○ ⁻ ʻ ○ ⁺
+builtin ℧ = ε
+
+data N : Set where
+    add : N
+
+native : N -> Context
+native add = ε ʻ ○ ⁺ ʻ ○ ⁺
+
+open Syntax Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ B builtin N native public
+open Reduction Ç⁺ Ç⁻ ç _≟⁺_ _≟⁻_ B builtin N native public
+
+implement-native : {Γ : Context} (n : N) -> Γ ⊢̅ native n -> Γ ⊢ is ○ ⁺
+implement-native add σ with σ 𝕫 | σ (𝕤 𝕫)
+... | cons⁺ (nat n) _ | cons⁺ (nat m) _ = cons⁺ (nat (m + n)) \ ()
+... | _ | _ = n! add σ
 
 term-true : ∀ {Γ} -> Γ ⊢ is ○ ⁺
 term-true = cons⁺ inr \ { fzero -> cons⁺ unit \ () }
@@ -162,16 +184,14 @@ term-true = cons⁺ inr \ { fzero -> cons⁺ unit \ () }
 term-false : ∀ {Γ} -> Γ ⊢ is ○ ⁺
 term-false = cons⁺ inl \ { fzero -> cons⁺ unit \ () }
 
-isZero : ε ʻ ○ ⁺ ⊢ is ○ ⁺
-isZero = case var 𝕫 of
-    ((nat 0 ⁺⦅ (\ ()) ⦆ , term-true)
-    ∻ ($ _ , term-false)
-    ∻ ■)
-
+{-# NON_TERMINATING #-}
 translate : ε ⊢ # -> IO ⊤
-translate ℧ = halt
-translate (print (cons⁺ (nat n) _) nf) = printℕ n >> translate nf
+interpret : ε ⊢ # -> IO ⊤
+
+translate (b# ℧ _) = halt
+translate (b# print q) with q 𝕫 | q (𝕤 𝕫)
+... | cons⁺ (nat n) _ | ¬⁻ nf = printℕ n >> interpret (nf ⟦ push-σ (cons⁻ counit \ ()) ⟧)
+... | _ | _ = error
 translate _ = error
 
-interpret : ε ⊢ # -> IO ⊤
-interpret t = translate (normalize t)
+interpret t = translate (normalize implement-native t)
